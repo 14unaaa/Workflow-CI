@@ -23,6 +23,16 @@ jobs:
         python -m pip install --upgrade pip
         pip install mlflow pandas scikit-learn virtualenv
 
+    - name: Setup MLflow Project Git
+      run: |
+        cd ./MLProject_Folder
+        git init
+        git config user.email "apq000d6x0580@student.devacademy.id"
+        git config user.name "Asmaul Husna Bot"
+        git add .
+        git commit -m "Initial commit for MLflow environment tracking"
+        cd ..
+
     - name: Run MLflow Project
       run: |
         mlflow run ./MLProject_Folder --entry-point main -P n_estimators=100 --env-manager local
