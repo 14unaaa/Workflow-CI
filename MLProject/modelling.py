@@ -1,49 +1,94 @@
+import os
+import argparse
+import joblib
 import pandas as pd
-import numpy as np
 import mlflow
 import mlflow.sklearn
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-import os
+from sklearn.metrics import accuracy_score
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
 
-df = pd.read_csv('getcontact_preprocessing.csv')
-df = df.dropna(subset=['text_clean', 'label'])
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data_path", type=str, default="getcontact_preprocessing.csv")
+    return parser.parse_args()
 
-X = df['text_clean']
-y = df['label']
+def upload_to_gdrive(file_path, folder_id):
+    creds_json = os.environ.get("GDRIVE_SERVICE_ACCOUNT_JSON")
+    if not creds_json:
+        print("Kredensial GDRIVE_SERVICE_ACCOUNT_JSON tidak ditemukan. Melewati unggah GDrive.")
+        return
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    with open("gdrive_creds.json", "w") as f:
+        f.write(creds_json)
 
-vectorizer = TfidfVectorizer(max_features=5000)
-X_train_vec = vectorizer.fit_transform(X_train)
-X_test_vec = vectorizer.transform(X_test)
+    creds = service_account.Credentials.from_service_account_file(
+        "gdrive_creds.json", 
+        scopes=["https://www.googleapis.com/auth/drive.file"]
+    )
+    service = build("drive", "v3", credentials=creds)
 
-mlflow.set_experiment("Getcontact_Sentiment_Baseline")
+    file_metadata = {
+        "name": os.path.basename(file_path),
+        "parents": [folder_id]
+    }
+    media = MediaFileUpload(file_path, mimetype="application/octet-stream", resumable=True)
+    
+    try:
+        uploaded_file = service.files().create(body=file_metadata, media_body=media, fields="id").execute()
+        print(f"Berhasil mengunggah model ke Google Drive. File ID: {uploaded_file.get('id')}")
+    except Exception as e:
+        print(f"Gagal mengunggah ke Google Drive: {e}")
+    finally:
+        if os.path.exists("gdrive_creds.json"):
+            os.remove("gdrive_creds.json")
 
-with mlflow.start_run(run_name="Baseline_Model"):
-    n_estimators = 100
-    model = RandomForestClassifier(n_estimators=n_estimators, random_state=42)
+def main():
+    args = parse_args()
     
-    mlflow.log_param("model_type", "RandomForest")
-    mlflow.log_param("n_estimators", n_estimators)
-    mlflow.log_param("max_features_tfidf", 5000)
-    
-    model.fit(X_train_vec, y_train)
-    
-    y_pred = model.predict(X_test_vec)
-    acc = accuracy_score(y_test, y_pred)
-    prec = precision_score(y_test, y_pred, average='macro')
-    rec = recall_score(y_test, y_pred, average='macro')
-    f1 = f1_score(y_test, y_pred, average='macro')
-    
-    # Logging Metriks secara Manual
-    mlflow.log_metric("accuracy", acc)
-    mlflow.log_metric("precision", prec)
-    mlflow.log_metric("recall", rec)
-    mlflow.log_metric("f1_score", f1)
-    
-    mlflow.sklearn.log_model(model, "model")
-    
-    print(f"Baseline Model Trained. Accuracy: {acc:.4f}")
+    if not os.path.exists(args.data_path):
+        args.data_path = os.path.join("MLProject", os.path.basename(args.data_path))
+
+    print(f"Membaca dataset dari: {args.data_path}")
+    df = pd.read_csv(args.data_path)
+
+    X_text = df['text_clean'].astype(str)
+    y = df['label']
+
+    vectorizer = TfidfVectorizer(max_features=5000)
+    X = vectorizer.fit_transform(X_text)
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    with mlflow.start_run() as run:
+        print(f"MLflow Run ID: {run.info.run_id}")
+        
+        with open("latest_run_id.txt", "w") as f:
+            f.write(run.info.run_id)
+
+        n_estimators = 100
+        model = RandomForestClassifier(n_estimators=n_estimators, random_state=42)
+        model.fit(X_train, y_train)
+
+        predictions = model.predict(X_test)
+        acc = accuracy_score(y_test, predictions)
+
+        mlflow.log_param("n_estimators", n_estimators)
+        mlflow.log_metric("accuracy", acc)
+        mlflow.sklearn.log_model(model, "model_artifact")
+        
+        print(f"Model berhasil dilatih dengan Akurasi: {acc:.4f}")
+
+        local_model_path = "trained_model.pkl"
+        joblib.dump(model, local_model_path)
+
+        gdrive_folder_id = os.environ.get("GDRIVE_FOLDER_ID")
+        if gdrive_folder_id:
+            upload_to_gdrive(local_model_path, gdrive_folder_id)
+
+if __name__ == "__main__":
+    main()
