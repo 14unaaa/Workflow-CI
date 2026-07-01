@@ -6,14 +6,14 @@ on:
       - main
 
 jobs:
-  train-and-track:
+  mlflow-ci-workflow:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repository
+    - name: Checkout Code
       uses: actions/checkout@v4
 
-    - name: Set up Python
+    - name: Setup Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
@@ -23,13 +23,12 @@ jobs:
         python -m pip install --upgrade pip
         pip install mlflow pandas scikit-learn
 
-    - name: Run MLflow Project (Re-training)
+    - name: Run MLflow Project
       run: |
-        # Menjalankan MLflow Project tanpa conda karena dependensi sudah di-install di atas
         mlflow run ./MLProject_Folder --entry-point main -P n_estimators=100 --no-conda
 
-    - name: Commit and Push Model Artifacts to GitHub
+    - name: Upload to GitHub (Save Artifacts)
       uses: stefanzweifel/git-auto-commit-action@v5
       with:
-        commit_message: "Automated Bot: Re-trained model artifacts updated [skip ci]"
+        commit_message: "Automated Bot: Upload re-trained model artifacts [skip ci]"
         file_pattern: 'MLProject_Folder/mlruns/*'
