@@ -42,8 +42,7 @@ jobs:
     - name: Get Latest MLflow Run ID
       id: get_run_id
       run: |
-        # Membaca Run ID yang dibuat oleh skrip modelling.py
-        RUN_ID=$(cat latest_run_id.txt)
+        RUN_ID=$(cat MLProject/latest_run_id.txt)
         echo "MLFLOW_RUN_ID=$RUN_ID" >> $GITHUB_ENV
         echo "Terdeteksi Run ID terbaru: $RUN_ID"
 
