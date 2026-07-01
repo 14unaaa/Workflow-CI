@@ -35,13 +35,21 @@ jobs:
 
     - name: Build Docker Image
       run: |
-        # MLflow run otomatis membuat folder mlruns di root direktori runner.
-        # Kita cari folder run ID terbaru secara dinamis pada path yang benar:
-        LATEST_RUN=$(ls -td mlruns/0/*/ | head -1)
-        echo "Menggunakan run artifak dari lokasi: ${LATEST_RUN}"
+        python -c "
+        import os, glob, subprocess
+        # Cari folder artifact model terdalam secara pasti
+        run_folders = glob.glob('mlruns/0/*/artifacts/model')
+        if not run_folders:
+            raise FileNotFoundError('Folder artifak model MLflow tidak ditemukan!')
+        # Urutkan berdasarkan waktu modifikasi terbaru
+        latest_model_path = max(run_folders, key=os.path.getmtime)
+        print(f'Membangun Docker dari path: {latest_model_path}')
         
-        # Build image menggunakan path yang valid
-        mlflow models build-docker -m "${LATEST_RUN}artifacts/model" -n "${{ secrets.DOCKER_HUB_USERNAME }}/getcontact-model:latest" --enable-mlflow-deployment
+        # Eksekusi mlflow build-docker via subprocess agar nama image dinamis sesuai secret
+        image_name = '${{ secrets.DOCKER_HUB_USERNAME }}/getcontact-model:latest'
+        cmd = f'mlflow models build-docker -m {latest_model_path} -n {image_name} --enable-mlflow-deployment'
+        subprocess.run(cmd, shell=True, check=True)
+        "
 
     - name: Push Docker Image to Docker Hub
       run: |
