@@ -25,9 +25,9 @@ jobs:
 
     - name: Setup MLflow Project Git
       run: |
-        cd ./MLProject_Folder
+        cd ./MLProject
         git init
-        git config user.email "apq000d6x0580@student.devacademy.id"
+        git config user.email "missnapalet@gmail.com"
         git config user.name "Asmaul Husna Bot"
         git add .
         git commit -m "Initial commit for MLflow environment tracking"
@@ -35,7 +35,7 @@ jobs:
 
     - name: Run MLflow Project
       run: |
-        mlflow run ./MLProject_Folder --entry-point main -P n_estimators=100 --env-manager local
+        mlflow run ./MLProject --entry-point main -P n_estimators=100 --env-manager local
 
     - name: Log in to Docker Hub
       uses: docker/login-action@v3
