@@ -1,83 +1,69 @@
-name: Machine Learning Workflow CI
+name: CI Workflow
 
 on:
   push:
-    branches:
-      - main
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
-  mlflow-ci-workflow:
+  build-and-train:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v4
+    - name: Checkout Repository
+      uses: actions/checkout@v3
 
-    - name: Setup Python
-      uses: actions/setup-python@v5
+    - name: Set up Python 3.12.7
+      uses: actions/setup-python@v4
       with:
-        python-version: '3.11'
+        python-version: "3.12.7"
+
+    - name: Check Environment
+      run: |
+        python --version
+        pip --version
+        pwd
+        ls -la
 
     - name: Install Dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install mlflow pandas scikit-learn virtualenv
+        pip install mlflow scikit-learn pandas numpy google-api-python-client google-auth-httplib2 google-auth-oauthlib joblib
 
-    - name: Configure MLflow tracking to SQLite
-      run: echo "MLFLOW_TRACKING_URI=sqlite:///${{ github.workspace }}/mlflow.db" >> $GITHUB_ENV
-
-    - name: Setup MLflow Project Git
+    - name: Run MLflow Project (Re-training)
+      env:
+        GDRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON }}
+        GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
       run: |
-        cd ./MLProject
-        git init
-        git config user.email "missnapalet@gmail.com"
-        git config user.name "Asmaul Husna Bot"
-        git add .
-        git commit -m "Initial commit for MLflow environment tracking"
-        cd ..
+        # Berjalan langsung menggunakan MLflow CLI mengarah ke direktori proyek
+        mlflow run MLProject --entry-point main --no-conda
 
-    - name: Run MLflow Project
+    - name: Get Latest MLflow Run ID
+      id: get_run_id
       run: |
-        mlflow run ./MLProject --entry-point main -P n_estimators=100 --env-manager local
+        # Membaca Run ID yang dibuat oleh skrip modelling.py
+        RUN_ID=$(cat latest_run_id.txt)
+        echo "MLFLOW_RUN_ID=$RUN_ID" >> $GITHUB_ENV
+        echo "Terdeteksi Run ID terbaru: $RUN_ID"
 
     - name: Log in to Docker Hub
-      uses: docker/login-action@v3
+      uses: docker/login-action@v4
       with:
-        username: ${{ secrets.DOCKER_HUB_USERNAME }}
-        password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - name: Build Docker Image
+    - name: Build Docker Model via MLflow
       run: |
-        python -c "
-        import os, mlflow, subprocess
-        
-        mlflow.set_tracking_uri(os.environ['MLFLOW_TRACKING_URI'])
-        
-        # Ambil eksperimen aktif yang didefinisikan pada script modelling.py Anda
-        experiment = mlflow.get_experiment_by_name('Getcontact_Sentiment_CI')
-        if not experiment:
-            raise ValueError('Eksperimen Getcontact_Sentiment_CI tidak ditemukan di Database!')
-            
-        # Ambil riwayat run terbaru secara akurat dari SQLite database 
-        runs = mlflow.search_runs(experiment_ids=[experiment.experiment_id], order_by=['attributes.start_time DESC'], max_results=1)
-        if runs.empty:
-            raise FileNotFoundError('Tidak ada rekaman run MLflow yang ditemukan di dalam SQLite database!')
-            
-        latest_run_id = runs.iloc[0]['run_id']
-        model_uri = f'runs:/{latest_run_id}/model'
-        print(f'Membangun Docker dari URI Model Resmi: {model_uri}')
-        
-        image_name = '${{ secrets.DOCKER_HUB_USERNAME }}/getcontact-model:latest'
-        cmd = f'mlflow models build-docker -m {model_uri} -n {image_name} --enable-mlflow-deployment'
-        subprocess.run(cmd, shell=True, check=True)
-        "
+        # Menggunakan mlflow build-docker untuk membungkus model menjadi Image siap pakai
+        mlflow models build-docker -m "runs:/${{ env.MLFLOW_RUN_ID }}/model_artifact" -n "mlflow-model-image"
 
-    - name: Push Docker Image to Docker Hub
+    - name: Tag Docker Image
       run: |
-        docker push ${{ secrets.DOCKER_HUB_USERNAME }}/getcontact-model:latest
+        # Melakukan tagging image menyesuaikan dengan username Docker Hub tujuan
+        docker tag mlflow-model-image:latest ${{ secrets.DOCKERHUB_USERNAME }}/mlflow-model-image:latest
 
-    - name: Upload to GitHub
-      uses: stefanzweifel/git-auto-commit-action@v5
-      with:
-        commit_message: "Automated Bot: Upload re-trained model artifacts [skip ci]"
-        file_pattern: 'mlruns/* mlflow.db'
+    - name: Push Docker Image
+      run: |
+        # Mengirimkan image final menuju repositori publik Docker Hub Anda
+        docker push ${{ secrets.DOCKERHUB_USERNAME }}/mlflow-model-image:latest
