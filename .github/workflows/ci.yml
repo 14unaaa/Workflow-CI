@@ -49,9 +49,11 @@ jobs:
       run: |
         python -c "
         import os, glob, subprocess
-        run_folders = glob.glob('mlruns/0/*/artifacts/model')
+        run_folders = glob.glob('MLProject/mlruns/0/*/artifacts/model')
         if not run_folders:
-            raise FileNotFoundError('Folder artifak model MLflow tidak ditemukan!')
+            run_folders = glob.glob('mlruns/0/*/artifacts/model')
+        if not run_folders:
+            raise FileNotFoundError('Folder artifak model MLflow tidak ditemukan di root maupun subfolder!')
         latest_model_path = max(run_folders, key=os.path.getmtime)
         print(f'Membangun Docker dari path: {latest_model_path}')
         
@@ -68,4 +70,4 @@ jobs:
       uses: stefanzweifel/git-auto-commit-action@v5
       with:
         commit_message: "Automated Bot: Upload re-trained model artifacts [skip ci]"
-        file_pattern: 'mlruns/*'
+        file_pattern: '**/mlruns/*'
