@@ -8,8 +8,6 @@ on:
 jobs:
   mlflow-ci-workflow:
     runs-on: ubuntu-latest
-    env:
-      MLFLOW_TRACKING_URI: file:./mlruns
 
     steps:
     - name: Checkout Code
@@ -25,6 +23,27 @@ jobs:
         python -m pip install --upgrade pip
         pip install mlflow pandas scikit-learn virtualenv
 
+    - name: Configure MLflow tracking to SQLite
+      # Persist MLFLOW_TRACKING_URI into GITHUB_ENV so it's available to all later steps
+      run: echo "MLFLOW_TRACKING_URI=sqlite:///${{ github.workspace }}/mlflow.db" >> $GITHUB_ENV
+
+    - name: (Optional) Migrate MLflow file-store to SQLite if mlruns exists
+      # Migration is best-effort and will not fail the job if the CLI command isn't available.
+      run: |
+        set -euo pipefail
+        echo "Checking for existing mlruns directories..."
+        if [ -d "./mlruns" ] || [ -d "./MLProject/mlruns" ]; then
+          echo "Found mlruns; attempting migration to sqlite://${{ github.workspace }}/mlflow.db"
+          if command -v mlflow >/dev/null 2>&1; then
+            # If mlflow migrate is available, try it; tolerate failures to avoid stopping the job
+            mlflow migrate file-store ./mlruns sqlite:///${{ github.workspace }}/mlflow.db || true
+          else
+            echo "mlflow CLI not found; skipping migration."
+          fi
+        else
+          echo "No mlruns directory found; skipping migration."
+        fi
+
     - name: Setup MLflow Project Git
       run: |
         cd ./MLProject
@@ -34,9 +53,10 @@ jobs:
         git add .
         git commit -m "Initial commit for MLflow environment tracking"
         cd ..
-    
+
     - name: Run MLflow Project
       run: |
+        # Use MLFLOW_TRACKING_URI (from GITHUB_ENV) — MLflow will write run metadata into the sqlite DB
         mlflow run ./MLProject --entry-point main -P n_estimators=100 --env-manager local
 
     - name: Log in to Docker Hub
@@ -48,15 +68,13 @@ jobs:
     - name: Build Docker Image
       run: |
         python -c "
-        import os, glob, subprocess
-        run_folders = glob.glob('MLProject/mlruns/0/*/artifacts/model')
-        if not run_folders:
-            run_folders = glob.glob('mlruns/0/*/artifacts/model')
+        import os, glob, subprocess, sys
+        # Search known mlruns locations for model artifacts
+        run_folders = glob.glob('MLProject/mlruns/0/*/artifacts/model') or glob.glob('mlruns/0/*/artifacts/model')
         if not run_folders:
             raise FileNotFoundError('Folder artifak model MLflow tidak ditemukan di root maupun subfolder!')
         latest_model_path = max(run_folders, key=os.path.getmtime)
         print(f'Membangun Docker dari path: {latest_model_path}')
-        
         image_name = '${{ secrets.DOCKER_HUB_USERNAME }}/getcontact-model:latest'
         cmd = f'mlflow models build-docker -m {latest_model_path} -n {image_name} --enable-mlflow-deployment'
         subprocess.run(cmd, shell=True, check=True)
