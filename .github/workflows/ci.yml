@@ -25,7 +25,7 @@ jobs:
 
     - name: Run MLflow Project
       run: |
-        mlflow run ./MLProject --entry-point main -P n_estimators=100 --no-conda
+        mlflow run ./MLProject_Folder --entry-point main -P n_estimators=100 --no-conda
 
     - name: Log in to Docker Hub
       uses: docker/login-action@v3
@@ -35,8 +35,12 @@ jobs:
 
     - name: Build Docker Image
       run: |
-        # Mencari folder run id terbaru di dalam mlruns untuk di-build menjadi docker image
-        LATEST_RUN=$(ls -td MLProject/mlruns/0/*/ | head -1)
+        # MLflow run otomatis membuat folder mlruns di root direktori runner.
+        # Kita cari folder run ID terbaru secara dinamis pada path yang benar:
+        LATEST_RUN=$(ls -td mlruns/0/*/ | head -1)
+        echo "Menggunakan run artifak dari lokasi: ${LATEST_RUN}"
+        
+        # Build image menggunakan path yang valid
         mlflow models build-docker -m "${LATEST_RUN}artifacts/model" -n "${{ secrets.DOCKER_HUB_USERNAME }}/getcontact-model:latest" --enable-mlflow-deployment
 
     - name: Push Docker Image to Docker Hub
@@ -47,4 +51,4 @@ jobs:
       uses: stefanzweifel/git-auto-commit-action@v5
       with:
         commit_message: "Automated Bot: Upload re-trained model artifacts [skip ci]"
-        file_pattern: 'MLProject/mlruns/*'
+        file_pattern: 'mlruns/*'
