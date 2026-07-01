@@ -37,7 +37,7 @@ jobs:
         GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
       run: |
         # Berjalan langsung menggunakan MLflow CLI mengarah ke direktori proyek
-        mlflow run MLProject --entry-point main --no-conda
+        mlflow run MLProject --entry-point main --env-manager local
 
     - name: Get Latest MLflow Run ID
       id: get_run_id
