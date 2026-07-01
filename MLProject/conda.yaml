@@ -1,12 +1,15 @@
-name: getcontact_env
+name: mlflow_env
 channels:
   - conda-forge
   - defaults
 dependencies:
-  - python=3.11
+  - python=3.12.7
   - pip
   - pip:
-      - mlflow
-      - pandas
-      - numpy
-      - scikit-learn
+      - mlflow==2.11.3
+      - scikit-learn==1.4.1.post1
+      - pandas==2.2.1
+      - numpy==1.26.4
+      - google-api-python-client==2.122.0
+      - google-auth-httplib2==0.2.0
+      - google-auth-oauthlib==1.2.0
