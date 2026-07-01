@@ -8,6 +8,8 @@ on:
 jobs:
   mlflow-ci-workflow:
     runs-on: ubuntu-latest
+    env:
+      MLFLOW_TRACKING_URI: sqlite:///mlflow.db
 
     steps:
     - name: Checkout Code
@@ -35,7 +37,6 @@ jobs:
     
     - name: Run MLflow Project
       run: |
-        export MLFLOW_TRACKING_URI=sqlite:///mlflow.db
         mlflow run ./MLProject --entry-point main -P n_estimators=100 --env-manager local
 
     - name: Log in to Docker Hub
@@ -58,8 +59,6 @@ jobs:
         cmd = f'mlflow models build-docker -m {latest_model_path} -n {image_name} --enable-mlflow-deployment'
         subprocess.run(cmd, shell=True, check=True)
         "
-      env:
-        MLFLOW_TRACKING_URI: sqlite:///mlflow.db
 
     - name: Push Docker Image to Docker Hub
       run: |
