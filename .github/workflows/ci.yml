@@ -60,9 +60,9 @@ jobs:
     - name: Tag Docker Image
       run: |
         # Melakukan tagging image menyesuaikan dengan username Docker Hub tujuan
-        docker tag mlflow-model-image:latest ${{ secrets.DOCKERHUB_USERNAME }}/mlflow-model-image:latest
+        docker tag mlflow-model-image:latest ${{ secrets.DOCKER_HUB_USERNAME }}/mlflow-model-image:latest
 
     - name: Push Docker Image
       run: |
         # Mengirimkan image final menuju repositori publik Docker Hub Anda
-        docker push ${{ secrets.DOCKERHUB_USERNAME }}/mlflow-model-image:latest
+        docker push ${{ secrets.DOCKER_HUB_USERNAME }}/mlflow-model-image:latest
