@@ -25,9 +25,9 @@ jobs:
       run: |
         pip install mlflow pandas numpy scikit-learn matplotlib seaborn
 
-    - name: Run MLflow Project
+    - name: Run MLflow Project (Re-training)
       run: |
-        mlflow run MLProject/ --env-manager local
+        mlflow run ./MLProject --entry-point main -P n_estimators=100 --no-conda
 
     - name: Upload Model Artifacts to GitHub
       uses: actions/upload-artifact@v4
