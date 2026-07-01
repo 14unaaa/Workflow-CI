@@ -32,9 +32,10 @@ jobs:
         git add .
         git commit -m "Initial commit for MLflow environment tracking"
         cd ..
-
+    
     - name: Run MLflow Project
       run: |
+        export MLFLOW_TRACKING_URI=sqlite:///mlflow.db
         mlflow run ./MLProject --entry-point main -P n_estimators=100 --env-manager local
 
     - name: Log in to Docker Hub
@@ -53,10 +54,12 @@ jobs:
         latest_model_path = max(run_folders, key=os.path.getmtime)
         print(f'Membangun Docker dari path: {latest_model_path}')
         
-        image_name = '${{ secrets.DOCKER_HUB_USERNAME }}/getcontact-model:latest'
+        image_name = '\${{ secrets.DOCKER_HUB_USERNAME }}/getcontact-model:latest'
         cmd = f'mlflow models build-docker -m {latest_model_path} -n {image_name} --enable-mlflow-deployment'
         subprocess.run(cmd, shell=True, check=True)
         "
+      env:
+        MLFLOW_TRACKING_URI: sqlite:///mlflow.db
 
     - name: Push Docker Image to Docker Hub
       run: |
