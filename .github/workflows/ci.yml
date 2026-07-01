@@ -9,7 +9,7 @@ jobs:
   mlflow-ci-workflow:
     runs-on: ubuntu-latest
     env:
-      MLFLOW_TRACKING_URI: sqlite:///mlflow.db
+      MLFLOW_TRACKING_URI: file:./mlruns
 
     steps:
     - name: Checkout Code
@@ -55,7 +55,7 @@ jobs:
         latest_model_path = max(run_folders, key=os.path.getmtime)
         print(f'Membangun Docker dari path: {latest_model_path}')
         
-        image_name = '\${{ secrets.DOCKER_HUB_USERNAME }}/getcontact-model:latest'
+        image_name = '${{ secrets.DOCKER_HUB_USERNAME }}/getcontact-model:latest'
         cmd = f'mlflow models build-docker -m {latest_model_path} -n {image_name} --enable-mlflow-deployment'
         subprocess.run(cmd, shell=True, check=True)
         "
